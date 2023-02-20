@@ -76,7 +76,25 @@ class _LoginState extends State<Login> {
                  padding: const EdgeInsets.all(30.0),
                  child: InkWell(
                    onTap: (){
-                      Navigator.pushReplacement(context, MaterialPageRoute(builder:(context) => const Home()));
+                    // Navigator.pushReplacement(context, MaterialPageRoute(builder:(context) => const Home()));
+                      if(emailController.text == 'admin@cocojambo.app' && pwdController.text == 'qwerty@123'){
+                        Navigator.pushReplacement(context, MaterialPageRoute(builder:(context) => const Home()));
+                      }else if(emailController.text != 'admin@cocojambo.app'){
+                        var snackBar = const SnackBar(content: Text('Please enter valid email',style:TextStyle(
+                            fontSize: 16.0,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: fontFamily.fontHelveticaNeueLTStd)),duration: Duration(seconds: 3));
+                            ScaffoldMessenger.of(context).showSnackBar(snackBar);
+                      }else{
+                        var snackBar = const SnackBar(content: Text('Please enter valid password',style:TextStyle(
+                            fontSize: 16.0,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: fontFamily.fontHelveticaNeueLTStd)),duration: Duration(seconds: 3));
+                        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+                      }
+
                    },
                    child: Container(
                      height: 40.0,

@@ -8,4 +8,5 @@ class CustomColors{
   static Color addCatBGColor = const Color.fromRGBO(10, 142, 47, 1.0);
   static Color searchTextColor = const Color.fromRGBO(149, 149, 149, 1.0);
   static Color tblBGColor = const Color.fromRGBO(241, 241, 241, 1.0);
+  static Color buttonDeleteBGColor = const Color.fromRGBO(202, 15, 15, 1.0);
 }

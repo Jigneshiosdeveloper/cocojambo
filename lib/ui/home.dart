@@ -1,7 +1,14 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:coco_jambo_admin/utils/color.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../utils/string.dart';
+import 'login.dart';
 
 class Home extends StatefulWidget {
   const Home({Key? key}) : super(key: key);
@@ -29,19 +36,24 @@ class _HomeState extends State<Home> {
   var isShowSubCategoryPopup = false;
   var isShowtasksPopup = false;
   var isShowPopup = false;
+  var isEditMainCategory = false;
+  var isEditSubCategory = false;
+  var selectedCatIndex = 0;
+  var referenceID = '';
 
-  var mainCategoryData = [
-    {
-      'headline': 'Warm Up',
-      'desc':
-          'Bereitet euch auf unvergesslichen Spaß bei einer Party mit der perfekten Spielform Piccolo. Es wird keine Gnade geben.'
-    },
-    {
-      'headline': 'Pre Party',
-      'desc':
-          'Warnung: Dieses Spiel ist nur für Spieler geeignet, die bereits gut angetrunken sind und ihre Sinne nicht mehr beisammen haben. Spiel auf eigene Gefahr.'
-    }
-  ];
+  // var mainCategoryData = [
+  //   {
+  //     'headline': 'Warm Up',
+  //     'desc':
+  //         'Bereitet euch auf unvergesslichen Spaß bei einer Party mit der perfekten Spielform Piccolo. Es wird keine Gnade geben.'
+  //   },
+  //   {
+  //     'headline': 'Pre Party',
+  //     'desc':
+  //         'Warnung: Dieses Spiel ist nur für Spieler geeignet, die bereits gut angetrunken sind und ihre Sinne nicht mehr beisammen haben. Spiel auf eigene Gefahr.'
+  //   }
+  // ];
+  var mainCategoryData = [];
 
   var subCategoryData = [
     {'main_category': '1', 'sub_category': '1', 'name': 'Standard'},
@@ -78,13 +90,45 @@ class _HomeState extends State<Home> {
   TextEditingController mainCatController = TextEditingController();
   TextEditingController subCatController = TextEditingController();
   TextEditingController nameSubCatController = TextEditingController();
+  TextEditingController subMainCatController = TextEditingController();
+  TextEditingController subSubCatController = TextEditingController();
   TextEditingController taskController = TextEditingController();
   TextEditingController noController = TextEditingController();
   TextEditingController yesController = TextEditingController();
 
+  final Query _collectionRef = FirebaseFirestore.instance
+      .collection('maincategory')
+      .orderBy('maincat', descending: false);
+  late QuerySnapshot querySnapshot;
+  var image1;
+  var imageURL1 = '';
+  var image2;
+  var imageURL2 = '';
+  var previewImageFile1;
+  var previewImageFile2;
+
   @override
   void initState() {
     super.initState();
+    loadData();
+  }
+
+  void loadData() async {
+    await getMainCategoryData();
+  }
+
+  Future<void> getMainCategoryData() async {
+    // Get docs from collection reference
+    querySnapshot = await _collectionRef.get();
+
+    // Get data from docs and convert map to List
+    mainCategoryData = querySnapshot.docs.map((doc) => doc.data()).toList();
+    mainCatController.text = (mainCategoryData.length + 1).toString();
+
+    setState(() {
+      mainCategoryData;
+      mainCatController;
+    });
   }
 
   @override
@@ -121,12 +165,20 @@ class _HomeState extends State<Home> {
                         color: CustomColors.loginAccountColor)),
                 Padding(
                   padding: const EdgeInsets.only(top: 3.0),
-                  child: Text('Logout',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: fontFamily.fontHelveticaNeueLTStd,
-                          color: CustomColors.loginAccountColor)),
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const Login()));
+                    },
+                    child: Text('Logout',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: fontFamily.fontHelveticaNeueLTStd,
+                            color: CustomColors.loginAccountColor)),
+                  ),
                 )
               ],
             ),
@@ -151,9 +203,12 @@ class _HomeState extends State<Home> {
                           return Padding(
                             padding: const EdgeInsets.only(right: 10.0),
                             child: InkWell(
-                              onTap: () {
+                              onTap: () async {
                                 selectedIndex = index;
                                 selectedCategory = menuArray[index];
+                                if (selectedCategory == 'Main Categories') {
+                                  getMainCategoryData();
+                                }
                                 setState(() {
                                   selectedIndex;
                                   selectedCategory;
@@ -212,7 +267,7 @@ class _HomeState extends State<Home> {
           isShowCategoryPopup
               ? Center(
                   child: Container(
-                    height: 300,
+                    height: 430,
                     width: 600,
                     decoration: BoxDecoration(
                         color: CustomColors.tblBGColor,
@@ -226,30 +281,88 @@ class _HomeState extends State<Home> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                  'Add Main Category #${mainCategoryData.length + 1}',
+                                  !isEditMainCategory
+                                      ? 'Add Main Category #${mainCategoryData.length + 1}'
+                                      : 'Edit Main Category #${mainCategoryData[selectedCatIndex]['maincat']}',
                                   style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                       fontFamily:
                                           fontFamily.fontHelveticaNeueLTStd,
                                       color: CustomColors.primaryColor)),
-                              InkWell(
-                                onTap: () {
-                                  isShowCategoryPopup = false;
-                                  setState(() {
-                                    isShowCategoryPopup;
-                                  });
-                                },
-                                child: Container(
-                                  height: 20.0,
-                                  width: 20.0,
-                                  decoration: BoxDecoration(
-                                      color: CustomColors.primaryColor,
-                                      borderRadius:
-                                          BorderRadius.circular(10.0)),
-                                  child: const Icon(Icons.close,
-                                      size: 12, color: Colors.white),
-                                ),
+                              Row(
+                                children: [
+                                  isEditMainCategory
+                                      ? InkWell(
+                                          child: Container(
+                                            height: 20.0,
+                                            width: 60.0,
+                                            decoration: BoxDecoration(
+                                                color: CustomColors
+                                                    .buttonDeleteBGColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        10.0)),
+                                            child: const Center(
+                                              child: Padding(
+                                                padding:
+                                                    EdgeInsets.only(top: 3.0),
+                                                child: Text('Delete',
+                                                    style: TextStyle(
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w400,
+                                                        fontFamily: fontFamily
+                                                            .fontHelveticaNeueLTStd,
+                                                        color: Colors.white)),
+                                              ),
+                                            ),
+                                          ),
+                                          onTap: () async {
+                                            await FirebaseFirestore.instance
+                                                .collection('maincategory')
+                                                .doc(referenceID)
+                                                .delete();
+                                            isShowCategoryPopup = false;
+                                            getMainCategoryData();
+                                            setState(() {
+                                              isShowCategoryPopup;
+                                            });
+                                          },
+                                        )
+                                      : SizedBox(),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 10.0),
+                                    child: InkWell(
+                                      onTap: () {
+                                        isShowCategoryPopup = false;
+                                        headlineController.text = '';
+                                        descController.text = '';
+                                        mainCatController.text = '';
+                                        subCatController.text = '';
+                                        isEditMainCategory = false;
+                                        setState(() {
+                                          isShowCategoryPopup;
+                                          headlineController;
+                                          descController;
+                                          mainCatController;
+                                          subCatController;
+                                          isEditMainCategory;
+                                        });
+                                      },
+                                      child: Container(
+                                        height: 20.0,
+                                        width: 20.0,
+                                        decoration: BoxDecoration(
+                                            color: CustomColors.primaryColor,
+                                            borderRadius:
+                                                BorderRadius.circular(10.0)),
+                                        child: const Icon(Icons.close,
+                                            size: 12, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               )
                             ],
                           ),
@@ -345,20 +458,32 @@ class _HomeState extends State<Home> {
                                       width: 50,
                                       height: 30,
                                       color: Colors.white,
-                                      child: TextField(
-                                        controller: mainCatController,
-                                        maxLines: 10,
-                                        keyboardType: TextInputType.number,
-                                        style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: fontFamily
-                                                .fontHelveticaNeueLTStd,
-                                            color: Colors.black),
-                                        decoration: const InputDecoration(
-                                          isDense: true,
-                                          border: OutlineInputBorder(
-                                            borderSide: BorderSide.none,
+                                      child: Padding(
+                                        padding:
+                                            const EdgeInsets.only(top: 5.0),
+                                        child: TextField(
+                                          controller: mainCatController,
+                                          maxLines: 1,
+                                          maxLength: 2,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: <TextInputFormatter>[
+                                            FilteringTextInputFormatter
+                                                .digitsOnly
+                                          ],
+                                          enabled: false,
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              fontFamily: fontFamily
+                                                  .fontHelveticaNeueLTStd,
+                                              color: Colors.black),
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            counterText: '',
+                                            contentPadding: EdgeInsets.all(8),
+                                            border: OutlineInputBorder(
+                                              borderSide: BorderSide.none,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -383,20 +508,31 @@ class _HomeState extends State<Home> {
                                       width: 50,
                                       height: 30,
                                       color: Colors.white,
-                                      child: TextField(
-                                        controller: mainCatController,
-                                        maxLines: 10,
-                                        keyboardType: TextInputType.number,
-                                        style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: fontFamily
-                                                .fontHelveticaNeueLTStd,
-                                            color: Colors.black),
-                                        decoration: const InputDecoration(
-                                          isDense: true,
-                                          border: OutlineInputBorder(
-                                            borderSide: BorderSide.none,
+                                      child: Padding(
+                                        padding:
+                                            const EdgeInsets.only(top: 5.0),
+                                        child: TextField(
+                                          controller: subCatController,
+                                          maxLines: 1,
+                                          maxLength: 2,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: <TextInputFormatter>[
+                                            FilteringTextInputFormatter
+                                                .digitsOnly
+                                          ],
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              fontFamily: fontFamily
+                                                  .fontHelveticaNeueLTStd,
+                                              color: Colors.black),
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            counterText: '',
+                                            contentPadding: EdgeInsets.all(8),
+                                            border: OutlineInputBorder(
+                                              borderSide: BorderSide.none,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -405,27 +541,249 @@ class _HomeState extends State<Home> {
                             ),
                           ),
                           Padding(
+                            padding: const EdgeInsets.only(top: 10.0),
+                            child: Row(
+                              children: [
+                                const Text('Image 1',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        fontFamily:
+                                            fontFamily.fontHelveticaNeueLTStd,
+                                        color: Colors.black)),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 39.0),
+                                  child: Row(
+                                    children: [
+                                      InkWell(
+                                        child: imageURL1 == ''
+                                            ? Container(
+                                                width: 60,
+                                                height: 60,
+                                                color: Colors.grey
+                                                    .withOpacity(0.5),
+                                                child: const Center(
+                                                    child: Icon(Icons.add,
+                                                        size: 16,
+                                                        color: Colors.grey)),
+                                              )
+                                            : Container(
+                                                width: 60,
+                                                height: 60,
+                                                child: Image.network(imageURL1),
+                                              ),
+                                        // CachedNetworkImage(
+                                        //         height: 60,
+                                        //         width: 60,
+                                        //         fit: BoxFit.fitWidth,
+                                        //         imageUrl: 'https://firebasestorage.googleapis.com/v0/b/parless-app.appspot.com/o/catimage1.jpg?alt=media&token=6e852f6f-c758-4f57-8e45-8d76624ce497',
+                                        //   // imageUrl: imageURL1,
+                                        //         // imageUrl: 'https://lh3.googleusercontent.com/a/AEdFTp5htaFbn0GkTkIP63URJHt_D1-7VaqKyCeCOvYx=s96-c',
+                                        //         // imageUrl: streamSnapshot.data != null?streamSnapshot.requireData.get('photourl'):'',
+                                        //         errorWidget:
+                                        //             (context, url, error) =>
+                                        //                 Container(
+                                        //           width: 60,
+                                        //           height: 60,
+                                        //           color:
+                                        //               Colors.red,
+                                        //           child: const Center(
+                                        //               child: Icon(Icons.add,
+                                        //                   size: 16,
+                                        //                   color: Colors.grey)),
+                                        //         ),
+                                        //       ),
+                                        onTap: () {
+                                          uploadProfileImage1(false, context);
+                                          //_settingModalBottomSheet(context);
+                                        },
+                                      ),
+                                      imageURL1 != ''
+                                          ? Padding(
+                                              padding: const EdgeInsets.only(
+                                                  left: 10.0),
+                                              child: InkWell(
+                                                child: Container(
+                                                  width: 25,
+                                                  height: 25,
+                                                  child: Image.asset(
+                                                      'assets/images/close.png'),
+                                                ),
+                                                onTap: () {
+                                                  imageURL1 = '';
+                                                  setState(() {
+                                                    imageURL1;
+                                                  });
+                                                },
+                                              ),
+                                            )
+                                          : SizedBox()
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10.0),
+                            child: Row(
+                              children: [
+                                const Text('Image 2',
+                                    style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                        fontFamily:
+                                            fontFamily.fontHelveticaNeueLTStd,
+                                        color: Colors.black)),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 39.0),
+                                  child: Row(
+                                    children: [
+                                      InkWell(
+                                        child: imageURL2 == ''
+                                            ? Container(
+                                                width: 60,
+                                                height: 60,
+                                                color: Colors.grey
+                                                    .withOpacity(0.5),
+                                                child: const Center(
+                                                    child: Icon(Icons.add,
+                                                        size: 16,
+                                                        color: Colors.grey)),
+                                              )
+                                            :
+                                            // CachedNetworkImage(
+                                            //         height: 60,
+                                            //         width: 60,
+                                            //         fit: BoxFit.fitWidth,
+                                            //         imageUrl: imageURL2,
+                                            //         // imageUrl: 'https://lh3.googleusercontent.com/a/AEdFTp5htaFbn0GkTkIP63URJHt_D1-7VaqKyCeCOvYx=s96-c',
+                                            //         // imageUrl: streamSnapshot.data != null?streamSnapshot.requireData.get('photourl'):'',
+                                            //         errorWidget:
+                                            //             (context, url, error) =>
+                                            //                 Container(
+                                            //           width: 60,
+                                            //           height: 60,
+                                            //           color:
+                                            //               Colors.red,
+                                            //           child: const Center(
+                                            //               child: Icon(Icons.add,
+                                            //                   size: 16,
+                                            //                   color: Colors.grey)),
+                                            //         ),
+                                            //       ),
+                                            Container(
+                                                width: 60,
+                                                height: 60,
+                                                child: Image.network(imageURL2),
+                                              ),
+                                        onTap: () {
+                                          uploadProfileImage2(false);
+                                          //_settingModalBottomSheet(context);
+                                        },
+                                      ),
+                                      imageURL2 != ''
+                                          ? Padding(
+                                              padding: const EdgeInsets.only(
+                                                  left: 10.0),
+                                              child: InkWell(
+                                                child: Container(
+                                                  width: 25,
+                                                  height: 25,
+                                                  child: Image.asset(
+                                                      'assets/images/close.png'),
+                                                ),
+                                                onTap: () {
+                                                  imageURL2 = '';
+                                                  setState(() {
+                                                    imageURL2;
+                                                  });
+                                                },
+                                              ),
+                                            )
+                                          : SizedBox()
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          ),
+                          Padding(
                             padding: const EdgeInsets.only(top: 20.0),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Container(
-                                  height: 30.0,
-                                  width: 200.0,
-                                  decoration: BoxDecoration(
-                                      color: CustomColors.menuColor,
-                                      borderRadius:
-                                          BorderRadius.circular(10.0)),
-                                  child: const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(top: 3.0),
-                                      child: Text('Send',
-                                          style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w400,
-                                              fontFamily: fontFamily
-                                                  .fontHelveticaNeueLTStd,
-                                              color: Colors.white)),
+                                InkWell(
+                                  onTap: () async {
+                                    if (!isEditMainCategory) {
+                                      // await FirebaseFirestore.instance
+                                      //     .collection('maincategory')
+                                      //     .doc()
+                                      //     .set({
+                                      //   'headline':
+                                      //       headlineController.text ?? '',
+                                      //   'desc': descController.text ?? '',
+                                      //   'maincat': mainCatController.text ?? '',
+                                      //   'subcat': subCatController.text ?? ''
+                                      // });
+                                      final document = FirebaseFirestore
+                                          .instance
+                                          .collection('maincategory')
+                                          .doc();
+                                      await document.set({
+                                        'headline':
+                                            headlineController.text ?? '',
+                                        'desc': descController.text ?? '',
+                                        'maincat': mainCatController.text ?? '',
+                                        'subcat': subCatController.text ?? ''
+                                      });
+                                      print('##### REF ID ${document.id}');
+                                      await FirebaseFirestore.instance
+                                          .collection('maincategory')
+                                          .doc(document.id)
+                                          .update({
+                                        'catimage1url': imageURL1,
+                                        'catimage2url': imageURL2,
+                                      });
+                                    } else {
+                                      await FirebaseFirestore.instance
+                                          .collection('maincategory')
+                                          .doc(referenceID)
+                                          .update({
+                                        'headline':
+                                            headlineController.text ?? '',
+                                        'desc': descController.text ?? '',
+                                        'maincat': mainCatController.text ?? '',
+                                        'subcat': subCatController.text ?? '',
+                                        'catimage1url': imageURL1,
+                                        'catimage2url': imageURL2,
+                                      });
+
+                                    }
+                                    isShowCategoryPopup = false;
+                                    getMainCategoryData();
+                                    setState(() {
+                                      isShowCategoryPopup;
+                                    });
+                                  },
+                                  child: Container(
+                                    height: 30.0,
+                                    width: 200.0,
+                                    decoration: BoxDecoration(
+                                        color: CustomColors.menuColor,
+                                        borderRadius:
+                                            BorderRadius.circular(10.0)),
+                                    child: const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.only(top: 3.0),
+                                        child: Text('Send',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w400,
+                                                fontFamily: fontFamily
+                                                    .fontHelveticaNeueLTStd,
+                                                color: Colors.white)),
+                                      ),
                                     ),
                                   ),
                                 )
@@ -462,23 +820,69 @@ class _HomeState extends State<Home> {
                                       fontFamily:
                                           fontFamily.fontHelveticaNeueLTStd,
                                       color: CustomColors.primaryColor)),
-                              InkWell(
-                                onTap: () {
-                                  isShowSubCategoryPopup = false;
-                                  setState(() {
-                                    isShowSubCategoryPopup;
-                                  });
-                                },
-                                child: Container(
-                                  height: 20.0,
-                                  width: 20.0,
-                                  decoration: BoxDecoration(
-                                      color: CustomColors.primaryColor,
-                                      borderRadius:
-                                          BorderRadius.circular(10.0)),
-                                  child: const Icon(Icons.close,
-                                      size: 12, color: Colors.white),
-                                ),
+                              Row(
+                                children: [
+                                  isEditMainCategory
+                                      ? InkWell(
+                                    child: Container(
+                                      height: 20.0,
+                                      width: 60.0,
+                                      decoration: BoxDecoration(
+                                          color: CustomColors
+                                              .buttonDeleteBGColor,
+                                          borderRadius:
+                                          BorderRadius.circular(
+                                              10.0)),
+                                      child: const Center(
+                                        child: Padding(
+                                          padding:
+                                          EdgeInsets.only(top: 3.0),
+                                          child: Text('Delete',
+                                              style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight:
+                                                  FontWeight.w400,
+                                                  fontFamily: fontFamily
+                                                      .fontHelveticaNeueLTStd,
+                                                  color: Colors.white)),
+                                        ),
+                                      ),
+                                    ),
+                                    onTap: () async {
+                                      // await FirebaseFirestore.instance
+                                      //     .collection('maincategory')
+                                      //     .doc(referenceID)
+                                      //     .delete();
+                                      // isShowCategoryPopup = false;
+                                      // getMainCategoryData();
+                                      // setState(() {
+                                      //   isShowCategoryPopup;
+                                      // });
+                                    },
+                                  )
+                                      : SizedBox(),
+                                  Padding(
+                                    padding: const EdgeInsets.only(left: 10.0),
+                                    child: InkWell(
+                                      onTap: () {
+                                        isShowSubCategoryPopup = false;
+                                        setState(() {
+                                          isShowSubCategoryPopup;
+                                        });
+                                      },
+                                      child: Container(
+                                        height: 20.0,
+                                        width: 20.0,
+                                        decoration: BoxDecoration(
+                                            color: CustomColors.primaryColor,
+                                            borderRadius:
+                                                BorderRadius.circular(10.0)),
+                                        child: const Icon(Icons.close,
+                                            size: 12, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               )
                             ],
                           ),
@@ -536,20 +940,30 @@ class _HomeState extends State<Home> {
                                       width: 50,
                                       height: 30,
                                       color: Colors.white,
-                                      child: TextField(
-                                        controller: mainCatController,
-                                        maxLines: 10,
-                                        keyboardType: TextInputType.number,
-                                        style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: fontFamily
-                                                .fontHelveticaNeueLTStd,
-                                            color: Colors.black),
-                                        decoration: const InputDecoration(
-                                          isDense: true,
-                                          border: OutlineInputBorder(
-                                            borderSide: BorderSide.none,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(top:5.0),
+                                        child: TextField(
+                                          controller: subMainCatController,
+                                          maxLines: 1,
+                                          maxLength: 2,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: <TextInputFormatter>[
+                                            FilteringTextInputFormatter
+                                                .digitsOnly
+                                          ],
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              fontFamily: fontFamily
+                                                  .fontHelveticaNeueLTStd,
+                                              color: Colors.black),
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            counterText: '',
+                                            contentPadding: EdgeInsets.all(8),
+                                            border: OutlineInputBorder(
+                                              borderSide: BorderSide.none,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -574,20 +988,30 @@ class _HomeState extends State<Home> {
                                       width: 50,
                                       height: 30,
                                       color: Colors.white,
-                                      child: TextField(
-                                        controller: mainCatController,
-                                        maxLines: 10,
-                                        keyboardType: TextInputType.number,
-                                        style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                            fontFamily: fontFamily
-                                                .fontHelveticaNeueLTStd,
-                                            color: Colors.black),
-                                        decoration: const InputDecoration(
-                                          isDense: true,
-                                          border: OutlineInputBorder(
-                                            borderSide: BorderSide.none,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(top:5.0),
+                                        child: TextField(
+                                          controller: subSubCatController,
+                                          maxLines: 1,
+                                          maxLength: 2,
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: <TextInputFormatter>[
+                                            FilteringTextInputFormatter
+                                                .digitsOnly
+                                          ],
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                              fontFamily: fontFamily
+                                                  .fontHelveticaNeueLTStd,
+                                              color: Colors.black),
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            counterText: '',
+                                            contentPadding: EdgeInsets.all(8),
+                                            border: OutlineInputBorder(
+                                              borderSide: BorderSide.none,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -600,25 +1024,57 @@ class _HomeState extends State<Home> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Container(
-                                  height: 30.0,
-                                  width: 200.0,
-                                  decoration: BoxDecoration(
-                                      color: CustomColors.menuColor,
-                                      borderRadius:
-                                          BorderRadius.circular(10.0)),
-                                  child: const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(top: 3.0),
-                                      child: Text('Send',
-                                          style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w400,
-                                              fontFamily: fontFamily
-                                                  .fontHelveticaNeueLTStd,
-                                              color: Colors.white)),
+                                InkWell(
+                                  child: Container(
+                                    height: 30.0,
+                                    width: 200.0,
+                                    decoration: BoxDecoration(
+                                        color: CustomColors.menuColor,
+                                        borderRadius:
+                                            BorderRadius.circular(10.0)),
+                                    child: const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.only(top: 3.0),
+                                        child: Text('Send',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w400,
+                                                fontFamily: fontFamily
+                                                    .fontHelveticaNeueLTStd,
+                                                color: Colors.white)),
+                                      ),
                                     ),
                                   ),
+                                  onTap: ()async{
+                                    // if (!isEditSubCategory) {
+                                    //
+                                    //   final document = FirebaseFirestore
+                                    //       .instance
+                                    //       .collection('subcategory')
+                                    //       .doc();
+                                    //   await document.set({
+                                    //     'name': nameSubCatController.text ?? '',
+                                    //     'maincat': subMainCatController.text ?? '',
+                                    //     'subcat': subSubCatController.text ?? ''
+                                    //   });
+                                    //
+                                    // } else {
+                                    //   await FirebaseFirestore.instance
+                                    //       .collection('subcategory')
+                                    //       .doc(referenceID)
+                                    //       .update({
+                                    //     'name': nameSubCatController.text ?? '',
+                                    //     'maincat': subMainCatController.text ?? '',
+                                    //     'subcat': subSubCatController.text ?? ''
+                                    //   });
+                                    //
+                                    // }
+                                    // isShowCategoryPopup = false;
+                                    // getMainCategoryData();
+                                    // setState(() {
+                                    //   isShowCategoryPopup;
+                                    // });
+                                  },
                                 )
                               ],
                             ),
@@ -738,6 +1194,7 @@ class _HomeState extends State<Home> {
                                             color: Colors.black),
                                         decoration: const InputDecoration(
                                           isDense: true,
+                                          contentPadding: EdgeInsets.all(15),
                                           border: OutlineInputBorder(
                                             borderSide: BorderSide.none,
                                           ),
@@ -765,7 +1222,7 @@ class _HomeState extends State<Home> {
                                       height: 30,
                                       color: Colors.white,
                                       child: TextField(
-                                        controller: mainCatController,
+                                        controller: subCatController,
                                         maxLines: 10,
                                         keyboardType: TextInputType.number,
                                         style: const TextStyle(
@@ -1203,8 +1660,20 @@ class _HomeState extends State<Home> {
                   child: InkWell(
                     onTap: () {
                       isShowCategoryPopup = true;
+                      isEditMainCategory = false;
+                      headlineController.text = '';
+                      descController.text = '';
+                      subCatController.text = '';
+                      imageURL1 = '';
+                      imageURL2 = '';
                       setState(() {
                         isShowCategoryPopup;
+                        isEditMainCategory;
+                        headlineController;
+                        descController;
+                        subCatController;
+                        imageURL1;
+                        imageURL2;
                       });
                     },
                     child: Container(
@@ -1252,8 +1721,8 @@ class _HomeState extends State<Home> {
                               color: Colors.white)),
                     ),
                     Padding(
-                      padding: EdgeInsets.only(left: 20.0),
-                      child: Text(' Description',
+                      padding: EdgeInsets.only(left: 50.0),
+                      child: Text('Description',
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w400,
@@ -1293,17 +1762,38 @@ class _HomeState extends State<Home> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                              '  ${index + 1}      ${mainCategoryData[index]['headline']}',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                  fontFamily: fontFamily.fontHelveticaNeueLTStd,
-                                  color: Colors.black)),
+                          Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                child: Text(' ${index + 1}',
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        fontFamily:
+                                            fontFamily.fontHelveticaNeueLTStd,
+                                        color: Colors.black)),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 15.0),
+                                child: Container(
+                                  width: 100,
+                                  child: Text(
+                                      '${mainCategoryData[index]['headline']}',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w400,
+                                          fontFamily:
+                                              fontFamily.fontHelveticaNeueLTStd,
+                                          color: Colors.black)),
+                                ),
+                              ),
+                            ],
+                          ),
                           Padding(
                             padding: const EdgeInsets.only(left: 15),
                             child: Container(
-                              width: MediaQuery.of(context).size.width - 250,
+                              width: MediaQuery.of(context).size.width - 300,
                               child: Text('${mainCategoryData[index]['desc']}',
                                   style: const TextStyle(
                                       fontSize: 12,
@@ -1316,23 +1806,53 @@ class _HomeState extends State<Home> {
                         ],
                       ),
                       Padding(
-                        padding: EdgeInsets.only(right: 0.0),
-                        child: Container(
-                          height: 20.0,
-                          width: 45.0,
-                          decoration: BoxDecoration(
-                              color: CustomColors.addCatBGColor,
-                              borderRadius: BorderRadius.circular(10.0)),
-                          child: const Center(
-                            child: Padding(
-                              padding: EdgeInsets.only(top: 3.0),
-                              child: Text('Edit',
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w400,
-                                      fontFamily:
-                                          fontFamily.fontHelveticaNeueLTStd,
-                                      color: Colors.white)),
+                        padding: const EdgeInsets.only(right: 0.0),
+                        child: InkWell(
+                          onTap: () {
+                            isEditMainCategory = true;
+                            isShowCategoryPopup = true;
+                            selectedCatIndex = index;
+                            headlineController.text =
+                                mainCategoryData[index]['headline'];
+                            descController.text =
+                                mainCategoryData[index]['desc'];
+                            mainCatController.text =
+                                mainCategoryData[index]['maincat'];
+                            subCatController.text =
+                                mainCategoryData[index]['subcat'];
+                            imageURL1 = mainCategoryData[index]['catimage1url'];
+                            imageURL2 = mainCategoryData[index]['catimage2url'];
+                            referenceID =
+                                querySnapshot.docs[index].reference.id;
+                            setState(() {
+                              isEditMainCategory;
+                              isShowCategoryPopup;
+                              selectedCatIndex;
+                              headlineController;
+                              descController;
+                              mainCatController;
+                              subCatController;
+                              imageURL1;
+                              imageURL2;
+                            });
+                          },
+                          child: Container(
+                            height: 20.0,
+                            width: 45.0,
+                            decoration: BoxDecoration(
+                                color: CustomColors.addCatBGColor,
+                                borderRadius: BorderRadius.circular(10.0)),
+                            child: const Center(
+                              child: Padding(
+                                padding: EdgeInsets.only(top: 3.0),
+                                child: Text('Edit',
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w400,
+                                        fontFamily:
+                                            fontFamily.fontHelveticaNeueLTStd,
+                                        color: Colors.white)),
+                              ),
                             ),
                           ),
                         ),
@@ -2210,5 +2730,104 @@ class _HomeState extends State<Home> {
         ),
       ],
     );
+  }
+
+  void _settingModalBottomSheet(context) {
+    showModalBottomSheet(
+        context: context,
+        builder: (BuildContext bc) {
+          return Container(
+            child: Wrap(
+              children: <Widget>[
+                ListTile(
+                    leading: new Icon(Icons.camera_alt),
+                    title: new Text('Camera'),
+                    onTap: () => {uploadProfileImage1(true, context)}),
+                ListTile(
+                  leading: new Icon(Icons.browse_gallery),
+                  title: new Text('Gallery'),
+                  onTap: () => {uploadProfileImage1(false, context)},
+                ),
+              ],
+            ),
+          );
+        });
+  }
+
+  void uploadProfileImage1(bool isCamera, BuildContext context) async {
+    image1 = await ImagePicker().pickImage(
+      source: !isCamera ? ImageSource.gallery : ImageSource.camera,
+      // maxHeight: 512,
+      // maxWidth: 512,
+      imageQuality: 80,
+    );
+    if (image1 != null) {
+      // Navigator.pop(context);
+
+      Reference ref = FirebaseStorage.instance.ref().child("${mainCatController.text}/catimage1.jpg");
+      // await ref.putFile(File(image1.path));
+      await ref.putData(await image1!.readAsBytes(),
+          SettableMetadata(contentType: 'image/jpeg'));
+      // Navigator.pop(context);
+
+      ref.getDownloadURL().then((value) async {
+        //databaseUpdate(context, 'profileurl', value);
+        print("##### URL $value  $referenceID");
+        setState(() {
+          imageURL1 = value;
+        });
+        // if (isEditMainCategory) {
+        //   // await FirebaseFirestore.instance
+        //   //     .collection('maincategory')
+        //   //     .doc(referenceID)
+        //   //     .update({
+        //   //   'catimage1url': value,
+        //   // });
+        //
+        //   //getMainCategoryData();
+        // }
+        // setState(() {});
+      });
+      // } else {
+      //   previewImageFile1 = File(image1.path);
+      //   setState(() {
+      //     previewImageFile1;
+      //   });
+      // }
+    }
+  }
+
+  void uploadProfileImage2(bool isCamera) async {
+    image2 = await ImagePicker().pickImage(
+      source: !isCamera ? ImageSource.gallery : ImageSource.camera,
+      // maxHeight: 512,
+      // maxWidth: 512,
+      imageQuality: 80,
+    );
+    if (image2 != null) {
+      // Navigator.pop(context);
+      Reference ref = FirebaseStorage.instance.ref().child("${mainCatController.text}/catimage2.jpg");
+      // await ref.putFile(File(image2.path));
+      await ref.putData(await image2!.readAsBytes(),
+          SettableMetadata(contentType: 'image/jpeg'));
+
+      ref.getDownloadURL().then((value) async {
+        //databaseUpdate(context, 'profileurl', value);
+        print("##### URL $value  $referenceID");
+        setState(() {
+          imageURL2 = value;
+        });
+        // if (isEditMainCategory) {
+        //   await FirebaseFirestore.instance
+        //       .collection('users')
+        //       .doc(referenceID)
+        //       .update({
+        //     'catimage2url': value,
+        //   });
+        // }
+        // getMainCategoryData();
+        // setState(() {});
+      });
+    }
   }
 }
